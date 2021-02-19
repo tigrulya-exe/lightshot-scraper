@@ -6,7 +6,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"lightshot-scraper/util"
-	"log"
 	"net/http"
 	"path"
 	"sync"
@@ -29,7 +28,7 @@ type lightshotScraper struct {
 }
 
 type LightshotScraper interface {
-	Scrap(context.Context, int) error
+	Scrap(context.Context, int)
 }
 
 func New(
@@ -44,11 +43,10 @@ func New(
 	}
 }
 
-func (ls *lightshotScraper) Scrap(ctx context.Context, rounds int) error {
+func (ls *lightshotScraper) Scrap(ctx context.Context, rounds int) {
 	util.CreateDirectoryIfNotExists(ls.dirName)
 	var wg sync.WaitGroup
-
-	for i := 0; i < rounds; i++ {
+	for i := util.NewCounter(0); i.Get() < rounds; {
 		wg.Add(1)
 		imageHash := ls.urlGenerator.Generate(symbolsCount)
 		imgSrc, err := ls.getImageSrc(ctx, imageHash)
@@ -64,8 +62,10 @@ func (ls *lightshotScraper) Scrap(ctx context.Context, rounds int) error {
 		go func() {
 			defer wg.Done()
 			if err := ls.saveImage(ctx, imgSrc); err != nil {
-				logrus.Errorf("Error saving image %v: %v", imgSrc, err)
+				logrus.Warnf("Deleted or wrong name %v", imgSrc)
+				return
 			}
+			i.Increment()
 		}()
 	}
 
@@ -83,7 +83,6 @@ func (ls *lightshotScraper) getImageSrc(
 	imageHash string,
 ) (string, error) {
 	fullPath := ls.baseUrl + "/" + imageHash
-	log.Println(fullPath)
 
 	resp, err := ls.get(ctx, fullPath)
 	if err != nil {
@@ -120,20 +119,6 @@ func (ls *lightshotScraper) saveImage(ctx context.Context, url string) error {
 	if err := ioutil.WriteFile(fileName, image, imagePermissions); err != nil {
 		return err
 	}
+	logrus.Infof("Downloaded from %v", url)
 	return nil
-}
-
-func waitForCompletion(wg *sync.WaitGroup, errCh <-chan error) error {
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		return nil
-	case err := <-errCh:
-		return err
-	}
 }
