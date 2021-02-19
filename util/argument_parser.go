@@ -8,8 +8,8 @@ type AppParams struct {
 }
 
 func ParseArgs() AppParams {
-	outputFlag := flag.String("o", "pics", "Directory for downloaded pictures storage")
-	roundsCountFlag := flag.Int("n", 10, "Number of pictures to scrap")
+	outputFlag := flag.String("o", "pics", "The path where images will be stored")
+	roundsCountFlag := flag.Int("n", 10, "Number of pictures to scrape")
 	flag.Parse()
 
 	return AppParams{
